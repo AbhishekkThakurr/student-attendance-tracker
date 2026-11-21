@@ -1,19 +1,19 @@
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Comparator;
 import java.util.Scanner;
 
 /**
- * Student Attendance Tracker — Day 1.
- * Add students, list them, and mark today's attendance (present / absent).
- * Attendance is kept in memory for now; saving to a file comes on Day 3.
+ * Student Attendance Tracker — Day 2.
+ * Attendance is now stored as one record per student per date, so any
+ * past date can be marked and any student's full history can be viewed.
+ * Records are still kept in memory; saving to a file comes on Day 3.
  */
 public class AttendanceTracker {
 
     private ArrayList<Student> students = new ArrayList<>();
-    // student id -> true means present today, false means absent today
-    private Map<Integer, Boolean> todayAttendance = new HashMap<>();
+    private ArrayList<AttendanceRecord> records = new ArrayList<>();
     private int nextId = 1;
 
     public static void main(String[] args) {
@@ -42,14 +42,17 @@ public class AttendanceTracker {
                     markAttendance(scanner);
                     break;
                 case 4:
-                    viewTodayAttendance();
+                    viewAttendanceForDate(scanner);
                     break;
                 case 5:
-                    System.out.println("Goodbye! Attendance for today is kept only until you exit.");
+                    viewStudentHistory(scanner);
+                    break;
+                case 6:
+                    System.out.println("Goodbye! Attendance is kept only until you exit.");
                     scanner.close();
                     return;
                 default:
-                    System.out.println("Invalid option. Please choose 1-5.");
+                    System.out.println("Invalid option. Please choose 1-6.");
             }
         }
     }
@@ -60,9 +63,10 @@ public class AttendanceTracker {
         System.out.println("Today: " + LocalDate.now());
         System.out.println("1. Add a student");
         System.out.println("2. List all students");
-        System.out.println("3. Mark today's attendance");
-        System.out.println("4. View today's attendance");
-        System.out.println("5. Exit");
+        System.out.println("3. Mark attendance (for any date)");
+        System.out.println("4. View attendance for a date");
+        System.out.println("5. View one student's attendance history");
+        System.out.println("6. Exit");
     }
 
     // Reads one integer; returns -1 if the input was not a number.
@@ -72,6 +76,22 @@ public class AttendanceTracker {
             return Integer.parseInt(line);
         } catch (NumberFormatException e) {
             return -1;
+        }
+    }
+
+    // Asks for a date in yyyy-MM-dd; blank means today.
+    // Returns null if the date could not be understood.
+    private LocalDate askDate(Scanner scanner) {
+        System.out.print("Enter date (yyyy-MM-dd) or press Enter for today: ");
+        String input = scanner.nextLine().trim();
+        if (input.isEmpty()) {
+            return LocalDate.now();
+        }
+        try {
+            return LocalDate.parse(input);
+        } catch (DateTimeParseException e) {
+            System.out.println("That date is not in yyyy-MM-dd format, e.g. 2026-11-20.");
+            return null;
         }
     }
 
@@ -114,6 +134,16 @@ public class AttendanceTracker {
         return null;
     }
 
+    // Finds the record for one student on one date, or null if none exists.
+    private AttendanceRecord findRecord(int studentId, LocalDate date) {
+        for (AttendanceRecord record : records) {
+            if (record.getStudentId() == studentId && record.getDate().equals(date)) {
+                return record;
+            }
+        }
+        return null;
+    }
+
     private void markAttendance(Scanner scanner) {
         if (students.isEmpty()) {
             System.out.println("Add a student first.");
@@ -127,30 +157,87 @@ public class AttendanceTracker {
             System.out.println("No student with id " + id + ".");
             return;
         }
-        System.out.print("Present today? (y/n): ");
+        LocalDate date = askDate(scanner);
+        if (date == null) {
+            return;
+        }
+        System.out.print("Present on " + date + "? (y/n): ");
         String answer = scanner.nextLine().trim().toLowerCase();
+        boolean present;
         if (answer.equals("y") || answer.equals("yes")) {
-            todayAttendance.put(id, true);
-            System.out.println(student.getName() + " marked PRESENT for " + LocalDate.now() + ".");
+            present = true;
         } else if (answer.equals("n") || answer.equals("no")) {
-            todayAttendance.put(id, false);
-            System.out.println(student.getName() + " marked ABSENT for " + LocalDate.now() + ".");
+            present = false;
         } else {
             System.out.println("Please answer y or n.");
+            return;
+        }
+        AttendanceRecord existing = findRecord(id, date);
+        if (existing != null) {
+            existing.setPresent(present);
+            System.out.println("Updated: " + student.getName() + " is now "
+                    + (present ? "PRESENT" : "ABSENT") + " on " + date + ".");
+        } else {
+            records.add(new AttendanceRecord(id, date, present));
+            System.out.println(student.getName() + " marked "
+                    + (present ? "PRESENT" : "ABSENT") + " for " + date + ".");
         }
     }
 
-    private void viewTodayAttendance() {
-        if (todayAttendance.isEmpty()) {
-            System.out.println("No attendance marked for " + LocalDate.now() + " yet.");
+    private void viewAttendanceForDate(Scanner scanner) {
+        LocalDate date = askDate(scanner);
+        if (date == null) {
             return;
         }
-        System.out.println("Attendance for " + LocalDate.now() + ":");
+        if (students.isEmpty()) {
+            System.out.println("No students added yet.");
+            return;
+        }
+        System.out.println("Attendance for " + date + ":");
         for (Student student : students) {
-            if (todayAttendance.containsKey(student.getId())) {
-                String status = todayAttendance.get(student.getId()) ? "Present" : "Absent";
-                System.out.println("  " + student.getName() + " — " + status);
+            AttendanceRecord record = findRecord(student.getId(), date);
+            if (record == null) {
+                System.out.println("  " + student.getName() + " — Not marked");
+            } else {
+                System.out.println("  " + student.getName() + " — "
+                        + (record.isPresent() ? "Present" : "Absent"));
             }
         }
+    }
+
+    private void viewStudentHistory(Scanner scanner) {
+        if (students.isEmpty()) {
+            System.out.println("Add a student first.");
+            return;
+        }
+        listStudents();
+        System.out.print("Enter student id: ");
+        int id = readInt(scanner);
+        Student student = findById(id);
+        if (student == null) {
+            System.out.println("No student with id " + id + ".");
+            return;
+        }
+        ArrayList<AttendanceRecord> history = new ArrayList<>();
+        for (AttendanceRecord record : records) {
+            if (record.getStudentId() == id) {
+                history.add(record);
+            }
+        }
+        if (history.isEmpty()) {
+            System.out.println("No attendance recorded for " + student.getName() + " yet.");
+            return;
+        }
+        history.sort(Comparator.comparing(AttendanceRecord::getDate));
+        System.out.println("Attendance history for " + student.getName() + ":");
+        int presentCount = 0;
+        for (AttendanceRecord record : history) {
+            System.out.println("  " + record);
+            if (record.isPresent()) {
+                presentCount++;
+            }
+        }
+        System.out.println("  Total: " + presentCount + " present out of "
+                + history.size() + " days recorded.");
     }
 }
