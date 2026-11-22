@@ -1,0 +1,7 @@
+studentId,date,present
+1,2026-11-20,true
+2,2026-11-20,true
+3,2026-11-20,false
+1,2026-11-21,true
+2,2026-11-21,false
+3,2026-11-21,true
