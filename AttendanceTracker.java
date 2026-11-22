@@ -5,10 +5,10 @@ import java.util.Comparator;
 import java.util.Scanner;
 
 /**
- * Student Attendance Tracker — Day 2.
- * Attendance is now stored as one record per student per date, so any
- * past date can be marked and any student's full history can be viewed.
- * Records are still kept in memory; saving to a file comes on Day 3.
+ * Student Attendance Tracker — Day 3.
+ * Attendance is stored as one record per student per date, and students
+ * and records are now saved to students.csv and attendance.csv, so the
+ * data is still there the next time the app starts.
  */
 public class AttendanceTracker {
 
@@ -22,6 +22,7 @@ public class AttendanceTracker {
     }
 
     private void run() {
+        loadData();
         Scanner scanner = new Scanner(System.in);
         while (true) {
             printMenu();
@@ -48,7 +49,8 @@ public class AttendanceTracker {
                     viewStudentHistory(scanner);
                     break;
                 case 6:
-                    System.out.println("Goodbye! Attendance is kept only until you exit.");
+                    saveData();
+                    System.out.println("Goodbye! Your data is saved in students.csv and attendance.csv.");
                     scanner.close();
                     return;
                 default:
@@ -67,6 +69,28 @@ public class AttendanceTracker {
         System.out.println("4. View attendance for a date");
         System.out.println("5. View one student's attendance history");
         System.out.println("6. Exit");
+    }
+
+    // Loads saved students and records at startup, and works out the
+    // next free student id from the highest id already saved.
+    private void loadData() {
+        students = AttendanceStorage.loadStudents();
+        records = AttendanceStorage.loadRecords();
+        for (Student student : students) {
+            if (student.getId() >= nextId) {
+                nextId = student.getId() + 1;
+            }
+        }
+        if (!students.isEmpty() || !records.isEmpty()) {
+            System.out.println("Loaded " + students.size() + " student(s) and "
+                    + records.size() + " attendance record(s) from file.");
+        }
+    }
+
+    // Writes the current students and records to the CSV files.
+    private void saveData() {
+        AttendanceStorage.saveStudents(students);
+        AttendanceStorage.saveRecords(records);
     }
 
     // Reads one integer; returns -1 if the input was not a number.
@@ -112,6 +136,7 @@ public class AttendanceTracker {
         students.add(student);
         System.out.println("Added: " + student);
         nextId++;
+        saveData();
     }
 
     private void listStudents() {
@@ -182,6 +207,7 @@ public class AttendanceTracker {
             System.out.println(student.getName() + " marked "
                     + (present ? "PRESENT" : "ABSENT") + " for " + date + ".");
         }
+        saveData();
     }
 
     private void viewAttendanceForDate(Scanner scanner) {
