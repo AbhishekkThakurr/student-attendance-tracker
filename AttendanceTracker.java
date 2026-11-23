@@ -5,10 +5,12 @@ import java.util.Comparator;
 import java.util.Scanner;
 
 /**
- * Student Attendance Tracker — Day 3.
+ * Student Attendance Tracker — Day 4.
  * Attendance is stored as one record per student per date, and students
  * and records are now saved to students.csv and attendance.csv, so the
- * data is still there the next time the app starts.
+ * data is still there the next time the app starts. Day 4 adds the
+ * attendance percentage report: present days out of recorded days,
+ * per student.
  */
 public class AttendanceTracker {
 
@@ -49,12 +51,15 @@ public class AttendanceTracker {
                     viewStudentHistory(scanner);
                     break;
                 case 6:
+                    viewPercentageReport();
+                    break;
+                case 7:
                     saveData();
                     System.out.println("Goodbye! Your data is saved in students.csv and attendance.csv.");
                     scanner.close();
                     return;
                 default:
-                    System.out.println("Invalid option. Please choose 1-6.");
+                    System.out.println("Invalid option. Please choose 1-7.");
             }
         }
     }
@@ -68,7 +73,8 @@ public class AttendanceTracker {
         System.out.println("3. Mark attendance (for any date)");
         System.out.println("4. View attendance for a date");
         System.out.println("5. View one student's attendance history");
-        System.out.println("6. Exit");
+        System.out.println("6. Attendance percentage report");
+        System.out.println("7. Exit");
     }
 
     // Loads saved students and records at startup, and works out the
@@ -265,5 +271,65 @@ public class AttendanceTracker {
         }
         System.out.println("  Total: " + presentCount + " present out of "
                 + history.size() + " days recorded.");
+    }
+
+    // Day 4: one percentage per student — present days out of the days
+    // actually recorded for that student. A student with no records yet
+    // has no percentage, so the report says so instead of dividing by 0.
+    // Sorted lowest first, so the students who need attention are on top.
+    private void viewPercentageReport() {
+        if (students.isEmpty()) {
+            System.out.println("No students added yet.");
+            return;
+        }
+        ArrayList<Student> sorted = new ArrayList<>(students);
+        sorted.sort(Comparator.comparingDouble(this::attendancePercentage));
+        System.out.println("Attendance percentage report:");
+        int totalPresent = 0;
+        int totalRecorded = 0;
+        for (Student student : sorted) {
+            int presentCount = 0;
+            int recordedCount = 0;
+            for (AttendanceRecord record : records) {
+                if (record.getStudentId() == student.getId()) {
+                    recordedCount++;
+                    if (record.isPresent()) {
+                        presentCount++;
+                    }
+                }
+            }
+            if (recordedCount == 0) {
+                System.out.println("  " + student.getName() + " — No attendance recorded yet");
+            } else {
+                double percentage = 100.0 * presentCount / recordedCount;
+                System.out.printf("  %s - %.1f%% (%d present out of %d days)%n",
+                        student.getName(), percentage, presentCount, recordedCount);
+                totalPresent += presentCount;
+                totalRecorded += recordedCount;
+            }
+        }
+        if (totalRecorded > 0) {
+            System.out.printf("  Class average: %.1f%%%n",
+                    100.0 * totalPresent / totalRecorded);
+        }
+    }
+
+    // Percentage for sorting the report; -1 means "no records", so those
+    // students sort above the 0% ones instead of being treated as 0%.
+    private double attendancePercentage(Student student) {
+        int presentCount = 0;
+        int recordedCount = 0;
+        for (AttendanceRecord record : records) {
+            if (record.getStudentId() == student.getId()) {
+                recordedCount++;
+                if (record.isPresent()) {
+                    presentCount++;
+                }
+            }
+        }
+        if (recordedCount == 0) {
+            return -1;
+        }
+        return 100.0 * presentCount / recordedCount;
     }
 }
