@@ -2,7 +2,7 @@
 
 A console-based Java app for tracking daily attendance of a class — add students, mark them present or absent each day, and see who is falling behind on attendance.
 
-**Status: Week 2 project, Day 3 of 7 done.**
+**Status: Week 2 project, Day 4 of 7 done.**
 
 ## Features
 - Add a student with a name and roll number
@@ -12,6 +12,7 @@ A console-based Java app for tracking daily attendance of a class — add studen
 - View one student's full attendance history, date-sorted with a present-days total
 - Re-marking a student on the same date updates the record instead of duplicating it
 - Students and attendance are saved to `students.csv` and `attendance.csv` and loaded again on the next run, so nothing is lost when the app exits
+- Attendance percentage report per student — present days out of recorded days, sorted lowest first, plus the class average
 
 ## Build plan for the week
 | Day | Work |
@@ -19,7 +20,7 @@ A console-based Java app for tracking daily attendance of a class — add studen
 | 1 | Project setup, Student model, add / list / mark attendance ✅ |
 | 2 | Attendance records by date, view attendance for any student ✅ |
 | 3 | Save and load students and attendance from CSV files ✅ |
-| 4 | Attendance percentage report per student |
+| 4 | Attendance percentage report per student ✅ |
 | 5 | Low-attendance warning (below 75%) and input validation |
 | 6 | Search a student, edit and delete records |
 | 7 | Final polish, sample data, complete README |
