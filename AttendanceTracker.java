@@ -5,14 +5,21 @@ import java.util.Comparator;
 import java.util.Scanner;
 
 /**
- * Student Attendance Tracker — Day 4.
+ * Student Attendance Tracker — Day 5.
  * Attendance is stored as one record per student per date, and students
  * and records are now saved to students.csv and attendance.csv, so the
- * data is still there the next time the app starts. Day 4 adds the
+ * data is still there the next time the app starts. Day 4 added the
  * attendance percentage report: present days out of recorded days,
- * per student.
+ * per student. Day 5 adds the low-attendance warning — any student below
+ * 75% is flagged in the report, in a dedicated warnings list, and right
+ * after being marked absent — and tightens input validation: bad dates
+ * and bad y/n answers are re-asked instead of cancelling the action,
+ * future dates are refused, and duplicate roll numbers are rejected.
  */
 public class AttendanceTracker {
+
+    // The usual minimum attendance for exams; below this, warn.
+    private static final double LOW_ATTENDANCE_LIMIT = 75.0;
 
     private ArrayList<Student> students = new ArrayList<>();
     private ArrayList<AttendanceRecord> records = new ArrayList<>();
@@ -54,12 +61,15 @@ public class AttendanceTracker {
                     viewPercentageReport();
                     break;
                 case 7:
+                    viewLowAttendanceWarnings();
+                    break;
+                case 8:
                     saveData();
                     System.out.println("Goodbye! Your data is saved in students.csv and attendance.csv.");
                     scanner.close();
                     return;
                 default:
-                    System.out.println("Invalid option. Please choose 1-7.");
+                    System.out.println("Invalid option. Please choose 1-8.");
             }
         }
     }
@@ -74,7 +84,8 @@ public class AttendanceTracker {
         System.out.println("4. View attendance for a date");
         System.out.println("5. View one student's attendance history");
         System.out.println("6. Attendance percentage report");
-        System.out.println("7. Exit");
+        System.out.println("7. Low attendance warnings (below 75%)");
+        System.out.println("8. Exit");
     }
 
     // Loads saved students and records at startup, and works out the
@@ -110,18 +121,29 @@ public class AttendanceTracker {
     }
 
     // Asks for a date in yyyy-MM-dd; blank means today.
-    // Returns null if the date could not be understood.
+    // Day 5: keeps asking until a usable date is given. A wrong format
+    // is explained and re-asked, and a future date is refused — you can
+    // only mark attendance up to today.
     private LocalDate askDate(Scanner scanner) {
-        System.out.print("Enter date (yyyy-MM-dd) or press Enter for today: ");
-        String input = scanner.nextLine().trim();
-        if (input.isEmpty()) {
-            return LocalDate.now();
-        }
-        try {
-            return LocalDate.parse(input);
-        } catch (DateTimeParseException e) {
-            System.out.println("That date is not in yyyy-MM-dd format, e.g. 2026-11-20.");
-            return null;
+        while (true) {
+            System.out.print("Enter date (yyyy-MM-dd) or press Enter for today: ");
+            String input = scanner.nextLine().trim();
+            LocalDate date;
+            if (input.isEmpty()) {
+                date = LocalDate.now();
+            } else {
+                try {
+                    date = LocalDate.parse(input);
+                } catch (DateTimeParseException e) {
+                    System.out.println("That date is not in yyyy-MM-dd format, e.g. 2026-11-20. Try again.");
+                    continue;
+                }
+            }
+            if (date.isAfter(LocalDate.now())) {
+                System.out.println("That date is in the future — attendance can only be marked up to today. Try again.");
+                continue;
+            }
+            return date;
         }
     }
 
@@ -137,6 +159,15 @@ public class AttendanceTracker {
         if (rollNo.isEmpty()) {
             System.out.println("Roll number cannot be empty.");
             return;
+        }
+        // Day 5: one roll number belongs to one student — a duplicate
+        // would make two students impossible to tell apart.
+        for (Student existing : students) {
+            if (existing.getRollNo().equalsIgnoreCase(rollNo)) {
+                System.out.println("Roll number " + rollNo + " already belongs to "
+                        + existing.getName() + ".");
+                return;
+            }
         }
         Student student = new Student(nextId, name, rollNo);
         students.add(student);
@@ -189,19 +220,20 @@ public class AttendanceTracker {
             return;
         }
         LocalDate date = askDate(scanner);
-        if (date == null) {
-            return;
-        }
-        System.out.print("Present on " + date + "? (y/n): ");
-        String answer = scanner.nextLine().trim().toLowerCase();
+        // Day 5: a wrong y/n answer is re-asked instead of cancelling
+        // the marking, so one typo does not waste the whole step.
         boolean present;
-        if (answer.equals("y") || answer.equals("yes")) {
-            present = true;
-        } else if (answer.equals("n") || answer.equals("no")) {
-            present = false;
-        } else {
+        while (true) {
+            System.out.print("Present on " + date + "? (y/n): ");
+            String answer = scanner.nextLine().trim().toLowerCase();
+            if (answer.equals("y") || answer.equals("yes")) {
+                present = true;
+                break;
+            } else if (answer.equals("n") || answer.equals("no")) {
+                present = false;
+                break;
+            }
             System.out.println("Please answer y or n.");
-            return;
         }
         AttendanceRecord existing = findRecord(id, date);
         if (existing != null) {
@@ -214,13 +246,17 @@ public class AttendanceTracker {
                     + (present ? "PRESENT" : "ABSENT") + " for " + date + ".");
         }
         saveData();
+        // Day 5: warn immediately if this marking pushed the student
+        // below 75% attendance.
+        double percentage = attendancePercentage(student);
+        if (percentage >= 0 && percentage < LOW_ATTENDANCE_LIMIT) {
+            System.out.printf("Warning: %s's attendance is now %.1f%% — below 75%%.%n",
+                    student.getName(), percentage);
+        }
     }
 
     private void viewAttendanceForDate(Scanner scanner) {
         LocalDate date = askDate(scanner);
-        if (date == null) {
-            return;
-        }
         if (students.isEmpty()) {
             System.out.println("No students added yet.");
             return;
@@ -277,6 +313,7 @@ public class AttendanceTracker {
     // actually recorded for that student. A student with no records yet
     // has no percentage, so the report says so instead of dividing by 0.
     // Sorted lowest first, so the students who need attention are on top.
+    // Day 5: students below 75% are flagged right in the report.
     private void viewPercentageReport() {
         if (students.isEmpty()) {
             System.out.println("No students added yet.");
@@ -302,8 +339,10 @@ public class AttendanceTracker {
                 System.out.println("  " + student.getName() + " — No attendance recorded yet");
             } else {
                 double percentage = 100.0 * presentCount / recordedCount;
-                System.out.printf("  %s - %.1f%% (%d present out of %d days)%n",
-                        student.getName(), percentage, presentCount, recordedCount);
+                String warning = percentage < LOW_ATTENDANCE_LIMIT
+                        ? "  <-- LOW, below 75%!" : "";
+                System.out.printf("  %s - %.1f%% (%d present out of %d days)%s%n",
+                        student.getName(), percentage, presentCount, recordedCount, warning);
                 totalPresent += presentCount;
                 totalRecorded += recordedCount;
             }
@@ -311,6 +350,42 @@ public class AttendanceTracker {
         if (totalRecorded > 0) {
             System.out.printf("  Class average: %.1f%%%n",
                     100.0 * totalPresent / totalRecorded);
+        }
+    }
+
+    // Day 5: lists every student whose attendance is below 75% — the
+    // usual minimum for exams — with their percentage and absent days,
+    // so the teacher knows who needs attention. Students with no records
+    // yet are skipped, since there is nothing to warn about.
+    private void viewLowAttendanceWarnings() {
+        if (students.isEmpty()) {
+            System.out.println("No students added yet.");
+            return;
+        }
+        System.out.println("Low attendance warnings (below "
+                + (int) LOW_ATTENDANCE_LIMIT + "%):");
+        boolean anyWarning = false;
+        for (Student student : students) {
+            double percentage = attendancePercentage(student);
+            if (percentage < 0 || percentage >= LOW_ATTENDANCE_LIMIT) {
+                continue;
+            }
+            int absentCount = 0;
+            int recordedCount = 0;
+            for (AttendanceRecord record : records) {
+                if (record.getStudentId() == student.getId()) {
+                    recordedCount++;
+                    if (!record.isPresent()) {
+                        absentCount++;
+                    }
+                }
+            }
+            System.out.printf("  WARNING: %s — %.1f%% (%d absent out of %d days)%n",
+                    student.getName(), percentage, absentCount, recordedCount);
+            anyWarning = true;
+        }
+        if (!anyWarning) {
+            System.out.println("  No warnings — every student with recorded attendance is at or above 75%.");
         }
     }
 
