@@ -5,7 +5,7 @@ import java.util.Comparator;
 import java.util.Scanner;
 
 /**
- * Student Attendance Tracker — Day 5.
+ * Student Attendance Tracker — Day 6.
  * Attendance is stored as one record per student per date, and students
  * and records are now saved to students.csv and attendance.csv, so the
  * data is still there the next time the app starts. Day 4 added the
@@ -15,6 +15,10 @@ import java.util.Scanner;
  * after being marked absent — and tightens input validation: bad dates
  * and bad y/n answers are re-asked instead of cancelling the action,
  * future dates are refused, and duplicate roll numbers are rejected.
+ * Day 6 adds managing records: search a student by name or roll number,
+ * edit a student's name or roll number, delete a student together with
+ * all of their attendance records, and delete one attendance record
+ * (for a marking made by mistake). Every change is saved to CSV.
  */
 public class AttendanceTracker {
 
@@ -64,12 +68,24 @@ public class AttendanceTracker {
                     viewLowAttendanceWarnings();
                     break;
                 case 8:
+                    searchStudent(scanner);
+                    break;
+                case 9:
+                    editStudent(scanner);
+                    break;
+                case 10:
+                    deleteStudent(scanner);
+                    break;
+                case 11:
+                    deleteAttendanceRecord(scanner);
+                    break;
+                case 12:
                     saveData();
                     System.out.println("Goodbye! Your data is saved in students.csv and attendance.csv.");
                     scanner.close();
                     return;
                 default:
-                    System.out.println("Invalid option. Please choose 1-8.");
+                    System.out.println("Invalid option. Please choose 1-12.");
             }
         }
     }
@@ -85,7 +101,11 @@ public class AttendanceTracker {
         System.out.println("5. View one student's attendance history");
         System.out.println("6. Attendance percentage report");
         System.out.println("7. Low attendance warnings (below 75%)");
-        System.out.println("8. Exit");
+        System.out.println("8. Search a student (by name or roll number)");
+        System.out.println("9. Edit a student (name or roll number)");
+        System.out.println("10. Delete a student");
+        System.out.println("11. Delete one attendance record");
+        System.out.println("12. Exit");
     }
 
     // Loads saved students and records at startup, and works out the
@@ -387,6 +407,166 @@ public class AttendanceTracker {
         if (!anyWarning) {
             System.out.println("  No warnings — every student with recorded attendance is at or above 75%.");
         }
+    }
+
+    // Day 6: finds students whose name or roll number contains the
+    // search text (case-insensitive), and shows each match with their
+    // attendance percentage, so you can find a student without scrolling
+    // through the full list.
+    private void searchStudent(Scanner scanner) {
+        if (students.isEmpty()) {
+            System.out.println("No students added yet.");
+            return;
+        }
+        System.out.print("Enter name or roll number to search: ");
+        String query = scanner.nextLine().trim().toLowerCase();
+        if (query.isEmpty()) {
+            System.out.println("Search text cannot be empty.");
+            return;
+        }
+        boolean found = false;
+        for (Student student : students) {
+            if (student.getName().toLowerCase().contains(query)
+                    || student.getRollNo().toLowerCase().contains(query)) {
+                double percentage = attendancePercentage(student);
+                String extra = percentage < 0
+                        ? " — no attendance recorded yet"
+                        : String.format(" — %.1f%% attendance", percentage);
+                System.out.println("  " + student + extra);
+                found = true;
+            }
+        }
+        if (!found) {
+            System.out.println("No student matches \"" + query + "\".");
+        }
+    }
+
+    // Day 6: corrects a student's name or roll number. Pressing Enter
+    // keeps the current value. A new roll number is still checked
+    // against every other student, so duplicates cannot sneak in.
+    private void editStudent(Scanner scanner) {
+        if (students.isEmpty()) {
+            System.out.println("Add a student first.");
+            return;
+        }
+        listStudents();
+        System.out.print("Enter student id to edit: ");
+        int id = readInt(scanner);
+        Student student = findById(id);
+        if (student == null) {
+            System.out.println("No student with id " + id + ".");
+            return;
+        }
+        System.out.print("New name (Enter keeps \"" + student.getName() + "\"): ");
+        String newName = scanner.nextLine().trim();
+        System.out.print("New roll number (Enter keeps \"" + student.getRollNo() + "\"): ");
+        String newRollNo = scanner.nextLine().trim();
+        if (newName.isEmpty() && newRollNo.isEmpty()) {
+            System.out.println("Nothing changed.");
+            return;
+        }
+        if (!newRollNo.isEmpty()) {
+            for (Student existing : students) {
+                if (existing.getId() != id
+                        && existing.getRollNo().equalsIgnoreCase(newRollNo)) {
+                    System.out.println("Roll number " + newRollNo + " already belongs to "
+                            + existing.getName() + ".");
+                    return;
+                }
+            }
+        }
+        if (!newName.isEmpty()) {
+            student.setName(newName);
+        }
+        if (!newRollNo.isEmpty()) {
+            student.setRollNo(newRollNo);
+        }
+        System.out.println("Updated: " + student);
+        saveData();
+    }
+
+    // Day 6: removes a student and every attendance record they have.
+    // Asks for confirmation first, because there is no undo — the CSV
+    // files are rewritten right away.
+    private void deleteStudent(Scanner scanner) {
+        if (students.isEmpty()) {
+            System.out.println("Add a student first.");
+            return;
+        }
+        listStudents();
+        System.out.print("Enter student id to delete: ");
+        int id = readInt(scanner);
+        Student student = findById(id);
+        if (student == null) {
+            System.out.println("No student with id " + id + ".");
+            return;
+        }
+        int recordCount = 0;
+        for (AttendanceRecord record : records) {
+            if (record.getStudentId() == id) {
+                recordCount++;
+            }
+        }
+        System.out.print("Delete " + student.getName() + " and their "
+                + recordCount + " attendance record(s)? (y/n): ");
+        String answer = scanner.nextLine().trim().toLowerCase();
+        if (!answer.equals("y") && !answer.equals("yes")) {
+            System.out.println("Cancelled — nothing deleted.");
+            return;
+        }
+        records.removeIf(record -> record.getStudentId() == id);
+        students.remove(student);
+        System.out.println("Deleted " + student.getName() + " and "
+                + recordCount + " attendance record(s).");
+        saveData();
+    }
+
+    // Day 6: removes one attendance record — for a day marked by
+    // mistake. The student and their other records stay untouched.
+    private void deleteAttendanceRecord(Scanner scanner) {
+        if (students.isEmpty()) {
+            System.out.println("Add a student first.");
+            return;
+        }
+        listStudents();
+        System.out.print("Enter student id: ");
+        int id = readInt(scanner);
+        Student student = findById(id);
+        if (student == null) {
+            System.out.println("No student with id " + id + ".");
+            return;
+        }
+        ArrayList<AttendanceRecord> history = new ArrayList<>();
+        for (AttendanceRecord record : records) {
+            if (record.getStudentId() == id) {
+                history.add(record);
+            }
+        }
+        if (history.isEmpty()) {
+            System.out.println("No attendance recorded for " + student.getName() + " yet.");
+            return;
+        }
+        history.sort(Comparator.comparing(AttendanceRecord::getDate));
+        System.out.println("Records for " + student.getName() + ":");
+        for (int i = 0; i < history.size(); i++) {
+            System.out.println("  " + (i + 1) + ". " + history.get(i));
+        }
+        System.out.print("Enter record number to delete: ");
+        int choice = readInt(scanner);
+        if (choice < 1 || choice > history.size()) {
+            System.out.println("Invalid record number. Nothing deleted.");
+            return;
+        }
+        AttendanceRecord toDelete = history.get(choice - 1);
+        System.out.print("Delete " + toDelete + " for " + student.getName() + "? (y/n): ");
+        String answer = scanner.nextLine().trim().toLowerCase();
+        if (!answer.equals("y") && !answer.equals("yes")) {
+            System.out.println("Cancelled — nothing deleted.");
+            return;
+        }
+        records.remove(toDelete);
+        System.out.println("Deleted record: " + toDelete + " for " + student.getName() + ".");
+        saveData();
     }
 
     // Percentage for sorting the report; -1 means "no records", so those
