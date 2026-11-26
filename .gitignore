@@ -1,0 +1,2 @@
+# Compiled Java classes — rebuild them with javac, do not commit them
+*.class
