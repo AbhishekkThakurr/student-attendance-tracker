@@ -5,20 +5,19 @@ import java.util.Comparator;
 import java.util.Scanner;
 
 /**
- * Student Attendance Tracker — Day 6.
+ * Student Attendance Tracker — final version (Day 7 of 7).
  * Attendance is stored as one record per student per date, and students
- * and records are now saved to students.csv and attendance.csv, so the
- * data is still there the next time the app starts. Day 4 added the
- * attendance percentage report: present days out of recorded days,
- * per student. Day 5 adds the low-attendance warning — any student below
- * 75% is flagged in the report, in a dedicated warnings list, and right
- * after being marked absent — and tightens input validation: bad dates
- * and bad y/n answers are re-asked instead of cancelling the action,
- * future dates are refused, and duplicate roll numbers are rejected.
- * Day 6 adds managing records: search a student by name or roll number,
- * edit a student's name or roll number, delete a student together with
- * all of their attendance records, and delete one attendance record
- * (for a marking made by mistake). Every change is saved to CSV.
+ * and records are saved to students.csv and attendance.csv, so the data
+ * is still there the next time the app starts. The app can add, list,
+ * search, edit and delete students, mark and view attendance for any
+ * date, show one student's history, delete a single attendance record,
+ * and report each student's attendance percentage (present days out of
+ * recorded days) with a low-attendance warning below 75% — flagged in
+ * the report, in a dedicated warnings list, and right after a marking
+ * pushes a student below the limit. Input is validated throughout:
+ * bad dates and bad y/n answers are re-asked instead of cancelling the
+ * action, future dates are refused, and duplicate roll numbers are
+ * rejected. Every change is saved to CSV straight away.
  */
 public class AttendanceTracker {
 
@@ -93,7 +92,9 @@ public class AttendanceTracker {
     private void printMenu() {
         System.out.println();
         System.out.println("===== Student Attendance Tracker =====");
-        System.out.println("Today: " + LocalDate.now());
+        System.out.println("Today: " + LocalDate.now()
+                + "  |  Students: " + students.size()
+                + "  |  Records: " + records.size());
         System.out.println("1. Add a student");
         System.out.println("2. List all students");
         System.out.println("3. Mark attendance (for any date)");
@@ -334,13 +335,28 @@ public class AttendanceTracker {
     // has no percentage, so the report says so instead of dividing by 0.
     // Sorted lowest first, so the students who need attention are on top.
     // Day 5: students below 75% are flagged right in the report.
+    // Day 7 polish: students with no records yet sort to the end instead
+    // of the top — they need no attention, they just have no data yet.
     private void viewPercentageReport() {
         if (students.isEmpty()) {
             System.out.println("No students added yet.");
             return;
         }
         ArrayList<Student> sorted = new ArrayList<>(students);
-        sorted.sort(Comparator.comparingDouble(this::attendancePercentage));
+        sorted.sort((a, b) -> {
+            double pa = attendancePercentage(a);
+            double pb = attendancePercentage(b);
+            if (pa < 0 && pb < 0) {
+                return 0;
+            }
+            if (pa < 0) {
+                return 1;
+            }
+            if (pb < 0) {
+                return -1;
+            }
+            return Double.compare(pa, pb);
+        });
         System.out.println("Attendance percentage report:");
         int totalPresent = 0;
         int totalRecorded = 0;
@@ -569,8 +585,8 @@ public class AttendanceTracker {
         saveData();
     }
 
-    // Percentage for sorting the report; -1 means "no records", so those
-    // students sort above the 0% ones instead of being treated as 0%.
+    // Percentage for the reports; -1 means "no records yet", which the
+    // callers treat as "nothing to show" instead of a real 0%.
     private double attendancePercentage(Student student) {
         int presentCount = 0;
         int recordedCount = 0;
